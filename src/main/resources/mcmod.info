@@ -1,0 +1,16 @@
+[
+{
+  "modid": "modrequire",
+  "name": "Mod Require",
+  "description": "Mod that allows server owners to filter out clients based on their mods",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Quant1um"],
+  "credits": "",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]

@@ -1,16 +1,15 @@
-package net.quantium.modrequire.configuration.rules;
+package net.quantium.modrequire.configuration.players;
 
 public enum EnumMode {
-	REQUIRED("required", '!', true),
-	OPTIONAL("optional", '+', true),
-	BLACKLISTED("forbidden", '-', false);
+	CHECK("check", '+', false),
+	SKIP("skip", '-', true);
 	
-	private final String desc;
+	private final String description;
 	private final char prefix;
 	private final boolean pass;
 	
-	private EnumMode(String desc, char prefix, boolean pass) {
-		this.desc = desc;
+	private EnumMode(String description, char prefix, boolean pass) {
+		this.description = description;
 		this.prefix = prefix;
 		this.pass = pass;
 	}
@@ -24,10 +23,10 @@ public enum EnumMode {
 	}
 	
 	public String getDescription() {
-		return this.desc;
+		return this.description;
 	}
 	
-	public static EnumMode getByPrefix(char prefix) {
+	public static EnumMode fromPrefix(char prefix) {
 		for(EnumMode mode : EnumMode.values())
 			if(mode.getPrefix() == prefix)
 				return mode;

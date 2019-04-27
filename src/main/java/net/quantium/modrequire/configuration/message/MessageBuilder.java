@@ -1,4 +1,4 @@
-package net.quantium.modrequire;
+package net.quantium.modrequire.configuration.message;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -8,9 +8,9 @@ import org.apache.commons.lang3.StringUtils;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
-import net.quantium.modrequire.configuration.MessageInfo;
-import net.quantium.modrequire.configuration.ModInfo;
-import net.quantium.modrequire.configuration.rules.predicates.Predicate;
+import net.quantium.modrequire.configuration.rules.Resolution;
+import net.quantium.modrequire.configuration.rules.ModInfo;
+import net.quantium.modrequire.configuration.rules.ModSelector;
 
 public final class MessageBuilder {
 	private static final char NEW_LINE = '\n';
@@ -21,7 +21,7 @@ public final class MessageBuilder {
 	private static final String PADDING = "    ";
 	private static final String ELLIPSIS = "...";
 	
-	public static ITextComponent build(MessageInfo info, EntityPlayerMP player, ModResolver.Result result) {
+	public static ITextComponent build(MessageInfo info, EntityPlayerMP player, Resolution result) {
 		String nickname = player.getName();
 		int removeCount = result.getForbidden().size();
 		int installCount = result.getRequired().size();
@@ -37,7 +37,7 @@ public final class MessageBuilder {
 		List<String> installColumn = result.getRequired()
 				.stream()
 				.limit(MAX_ENTRIES)
-				.map(Predicate::toReadableString)
+				.map(ModSelector::toReadableString)
 				.sorted()
 				.collect(Collectors.toList());
 		if(installCount > MAX_ENTRIES) installColumn.add(ELLIPSIS);

@@ -1,72 +1,217 @@
 package net.quantium.modrequire.configuration;
 
-import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.nio.file.StandardWatchEventKinds;
+
+import org.apache.logging.log4j.Logger;
 
 import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.common.config.Configuration;
 import net.quantium.modrequire.ModProvider;
-import net.quantium.modrequire.configuration.rules.RequirementRules;
-import net.quantium.modrequire.configuration.rules.RequirementRules.RequirementParsingException;
-import net.quantium.modrequire.configuration.rules.predicates.PredicateParser.PredicateParserException;
+import net.quantium.modrequire.configuration.ComplexLoader.ErrorHandler;
+import net.quantium.modrequire.configuration.message.MessageInfo;
+import net.quantium.modrequire.configuration.parsing.ChunkedParser.ChunkedParserException;
+import net.quantium.modrequire.configuration.players.PlayerRuleset;
+import net.quantium.modrequire.configuration.players.PlayerRulesetParser;
+import net.quantium.modrequire.configuration.rules.ModRuleset;
+import net.quantium.modrequire.configuration.rules.ModRulesetParser;
+import net.quantium.modrequire.configuration.watcher.DirectoryWatcher;
+import net.quantium.modrequire.configuration.watcher.IWatcher;
+import net.quantium.modrequire.configuration.watcher.NullWatcher;
 
 public class ModConfiguration {
 
-	private final File configPath;
-	private final File rulesPath;
+	private static final ComplexLoader<ModRuleset> MOD_RULESET_LOADER 
+						= new ComplexLoader.Builder<ModRuleset>()
+							.charset(StandardCharsets.UTF_8)
+							.parser(ModRulesetParser.PARSER)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.multiple(
+										ErrorHandler.of((e) -> {
+											ModProvider.logger().fatal("Error had occured while parsing rules!");
+											ModProvider.logger().fatal("Default ruleset will be used.");
+											printError(e, ModProvider.logger());
+										})
+									), 
+									ModRuleset.InvalidRulesetException.class, 
+									ChunkedParserException.class
+								)
+							)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.thenWrite(ModRuleset.DEFAULT_DATA),
+									NoSuchFileException.class
+								)
+							)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.multiple(
+										ErrorHandler.doBackup(),
+										ErrorHandler.of((e) -> {
+											ModProvider.logger().fatal("Failed to load requirement rules! Current file is backuped and default ruleset is used");
+											printError(e, ModProvider.logger());
+										})
+									),
+									IOException.class
+								)
+							)
+							.error(
+								ErrorHandler.of(
+										(e) -> ModProvider.logger().fatal("Error occurred while loading mod ruleset!", e)
+									)
+							)
+							.build();
+	
+	private static final ComplexLoader<PlayerRuleset> PLAYER_RULESET_LOADER 
+						= new ComplexLoader.Builder<PlayerRuleset>()
+							.charset(StandardCharsets.UTF_8)
+							.parser(PlayerRulesetParser.PARSER)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.multiple(
+										ErrorHandler.of((e) -> {
+											ModProvider.logger().fatal("Error had occured while parsing rules!");
+											ModProvider.logger().fatal("Default ruleset will be used.");
+											printError(e, ModProvider.logger());
+										})
+									), 
+									PlayerRuleset.InvalidRulesetException.class, 
+									ChunkedParserException.class
+								)
+							)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.thenWrite(PlayerRuleset.DEFAULT_DATA),
+									NoSuchFileException.class
+								)
+							)
+							.error(
+								ErrorHandler.ifException(
+									ErrorHandler.multiple(
+										ErrorHandler.doBackup(),
+										ErrorHandler.of((e) -> {
+											ModProvider.logger().fatal("Failed to load player ruleset! Current file is backuped and default ruleset is used");
+											printError(e, ModProvider.logger());
+										})
+									),
+									IOException.class
+								)
+							)
+							.error(
+									ErrorHandler.of(
+											(e) -> ModProvider.logger().fatal("Error occurred while loading player ruleset!", e)
+										)
+							)
+							.build();
+	
+	private static void printError(Throwable error, Logger logger) {
+		logger.fatal(error.getMessage());
+		error = error.getCause();
+		
+		int limit = 10;
+		while(error != null && limit > 0) {
+			logger.fatal("- {}", error.getMessage());
+			error = error.getCause();
+			limit--;
+		}
+	}
+	
+	private final Path configPath;
+	private final Path rulesPath;
+	private final Path playersPath;
 	
 	private Configuration forgeConfiguration;
 	
-	private boolean doDumpRules;
-	private RequirementRules reqRules;
 	private MessageInfo msgInfo;
+	private ModRuleset modRuleset;
+	private PlayerRuleset playerRuleset;
 	
-	public ModConfiguration(File dir) {
-		dir.mkdirs();
+	private IWatcher watcher;
+	
+	public ModConfiguration(Path dir) {
+		try {
+			Files.createDirectories(dir);
+		} catch (IOException e) {
+			ModProvider.logger().error("Failed to create config directory", e);
+		}
 		
-		this.configPath = new File(dir, "config.cfg");
-		this.rulesPath = new File(dir, "rules.txt");
+		try {
+			watcher = new DirectoryWatcher(dir, this::reload, 
+					StandardWatchEventKinds.ENTRY_MODIFY, 
+					StandardWatchEventKinds.ENTRY_CREATE, 
+					StandardWatchEventKinds.ENTRY_DELETE);
+		} catch (IOException e) {
+			watcher = new NullWatcher();
+			ModProvider.logger().warn("Failed to init directory watcher", e);
+		}
+		
+		this.configPath = dir.resolve("config.cfg");
+		this.rulesPath = dir.resolve("rules.txt");
+		this.playersPath = dir.resolve("players.txt");
+	}
+	
+	private void reload() {
+		ModProvider.logger().info("Config has been automatically reloaded ^^");
+		load();
 	}
 	
 	public void load() {
-		if(this.forgeConfiguration == null)
-			this.forgeConfiguration = new Configuration(this.configPath);
-		this.forgeConfiguration.load();
+		watcher.setAccept(false);
 		
-		loadProperties();
-		
-		if(this.forgeConfiguration.hasChanged())
-			this.forgeConfiguration.save();
-		
-		Path path = this.rulesPath.toPath();
 		try {
-			if(!Files.exists(path)) {
-				this.reqRules = RequirementRules.DEFAULT;
-				Files.write(path, RequirementRules.DEFAULT_DATA);
-			} else {
-				this.reqRules = RequirementRules.parse(Files.readAllLines(this.rulesPath.toPath()));
-			}
+			if(this.forgeConfiguration == null)
+				this.forgeConfiguration = new Configuration(this.configPath.toFile());
+			this.forgeConfiguration.load();
 			
+			loadProperties();
 			
-			if(doDumpRules()) {
-				ModProvider.logger().info("Loaded rules:");
-				if(this.reqRules.isEmpty()) {
-					ModProvider.logger().info("<EMPTY>");
-				}else{
-					ModProvider.logger().info(this.reqRules.toReadableString());
-				}
-			}	
-		} catch(RequirementParsingException p) {
-			this.reqRules = RequirementRules.DEFAULT;
-			ModProvider.logger().fatal("Error had occured while parsing rules: {}", p.getMessage());
-			ModProvider.logger().fatal("Default ruleset will be used");
-		} catch (Throwable t) {
-			doBackup();
-			ModProvider.logger().fatal("Failed to load requirement rules! Current file is backuped and default ruleset is used", t);
+			if(this.forgeConfiguration.hasChanged())
+				this.forgeConfiguration.save();
+			
+			this.modRuleset = MOD_RULESET_LOADER
+								.load(this.rulesPath)
+								.orElse(ModRuleset.DEFAULT);
+			
+			this.playerRuleset = PLAYER_RULESET_LOADER
+								.load(this.playersPath)
+								.orElse(PlayerRuleset.DEFAULT);
+			
+			dumpModRuleset();
+			dumpPlayerRuleset();
+		} finally {
+			watcher.setAccept(true);
 		}
+	}
+	
+	public void dumpModRuleset() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("Loaded filter rules:").append("\n");
+		
+		if(this.modRuleset.isEmpty()) {
+			builder.append("<none>");
+		}else{
+			builder.append(this.modRuleset.toReadableString());
+		}
+		
+		ModProvider.logger().info(builder.toString());
+	}
+	
+	public void dumpPlayerRuleset() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("Loaded player rules:").append("\n");
+		
+		if(this.playerRuleset.isEmpty()) {
+			builder.append("<none>");
+		}else{
+			builder.append(this.playerRuleset.toReadableString());
+		}
+		
+		ModProvider.logger().info(builder.toString());
 	}
 	
 	private void loadProperties() {
@@ -80,32 +225,17 @@ public class ModConfiguration {
 		boolean headerOnly = cfg.getBoolean("headerOnly", "message", false, "Show only header text and hide all rejections from message");
 		
 		this.msgInfo = new MessageInfo(header, colRemove, colInstall, headerOnly);
-	
-		this.doDumpRules = cfg.getBoolean("doDumpRules", "general", true, "Print rules to console when (re)loaded");
 	}
 	
-	private void doBackup() {
-		File fileBak = new File(this.rulesPath.getAbsolutePath() + "_" +
-                new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".errored");
-		this.rulesPath.renameTo(fileBak);
-		
-		this.reqRules = RequirementRules.DEFAULT;
-		try{
-			Files.write(this.rulesPath.toPath(), RequirementRules.DEFAULT_DATA);
-		}catch(Throwable t2) {
-			ModProvider.logger().fatal("Failed to write fallback default ruleset!", t2);
-		}
-	}
-	
-	public RequirementRules getRules() {
-		return this.reqRules;
+	public ModRuleset getRules() {
+		return this.modRuleset;
 	}
 
-	public MessageInfo getRejectionMessageInfo() {
-		return this.msgInfo;
+	public PlayerRuleset getPlayers() {
+		return this.playerRuleset;
 	}
 	
-	public boolean doDumpRules() {
-		return this.doDumpRules;
+	public MessageInfo getRejectionMessageInfo() {
+		return this.msgInfo;
 	}
 }

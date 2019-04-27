@@ -16,7 +16,7 @@ public class ReloadCommand extends CommandBase {
 
 	@Override
 	public String getUsage(ICommandSender sender) {
-		return "/reloadmrq - Reloads mod config";
+		return "/reloadmrq - Reloads ModRequire's config";
 	}
 
 	@Override

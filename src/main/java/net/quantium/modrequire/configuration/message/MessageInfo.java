@@ -1,4 +1,4 @@
-package net.quantium.modrequire.configuration;
+package net.quantium.modrequire.configuration.message;
 
 public class MessageInfo {
 	private final String header;

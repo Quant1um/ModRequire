@@ -1,4 +1,4 @@
-package net.quantium.modrequire.configuration;
+package net.quantium.modrequire.configuration.rules;
 
 import net.minecraftforge.fml.common.versioning.ArtifactVersion;
 import net.minecraftforge.fml.common.versioning.DefaultArtifactVersion;

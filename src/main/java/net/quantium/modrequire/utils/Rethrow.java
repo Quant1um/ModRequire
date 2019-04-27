@@ -19,7 +19,7 @@ public final class Rethrow {
 		};
 	}
 	
-	private static <E extends Throwable> E throwAsUnchecked(Exception exception) throws E { 
+	public static <E extends Throwable> E throwAsUnchecked(Exception exception) throws E { 
 		if(exception instanceof RuntimeException)
 			throw (RuntimeException)exception;
 		throw (E)exception; 

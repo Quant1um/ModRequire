@@ -110,12 +110,12 @@ public class ModConfiguration {
 							.build();
 	
 	private static void printError(Throwable error, Logger logger) {
-		logger.fatal(error.getMessage());
+		if(error.getMessage() != null) logger.fatal(error.getMessage());
 		error = error.getCause();
 		
 		int limit = 10;
 		while(error != null && limit > 0) {
-			logger.fatal("- {}", error.getMessage());
+			if(error.getMessage() != null) logger.fatal("- {}", error.getMessage());
 			error = error.getCause();
 			limit--;
 		}

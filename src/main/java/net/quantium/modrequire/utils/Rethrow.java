@@ -14,14 +14,8 @@ public final class Rethrow {
 			try {
 				return func.apply(t);
 			} catch(Exception e) {
-				throw throwAsUnchecked(e);
+				throw new RuntimeException(e);
 			}
 		};
-	}
-	
-	public static <E extends Throwable> E throwAsUnchecked(Exception exception) throws E { 
-		if(exception instanceof RuntimeException)
-			throw (RuntimeException)exception;
-		throw (E)exception; 
 	}
 }

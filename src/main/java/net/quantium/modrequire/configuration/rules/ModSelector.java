@@ -1,14 +1,19 @@
 package net.quantium.modrequire.configuration.rules;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.NotImplementedException;
 
 import com.google.common.collect.RangeSet;
-import com.google.common.collect.TreeRangeSet;
+import com.google.common.collect.Streams;
 
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.ModContainer;
 import net.minecraftforge.fml.common.network.NetworkRegistry;
 import net.minecraftforge.fml.common.versioning.ArtifactVersion;
 import net.minecraftforge.fml.common.versioning.VersionRange;
@@ -35,25 +40,31 @@ public abstract class ModSelector implements Predicate<ModInfo> {
 		return new SpecificMod(id, range);
 	}
 	
-	public static Iterable<ModSelector> loadedMods() {
-		return NetworkRegistry.INSTANCE
-				.registry()
+	private static final Set<String> LOADED_IGNORE_MODS;
+	static {
+		LOADED_IGNORE_MODS = new HashSet<String>();	
+		LOADED_IGNORE_MODS.add(ModProvider.MODID);
+	}
+	
+	private static Stream<ModContainer> loadedModsStream() {
+		return Loader
+				.instance()
+				.getIndexedModList()
 				.entrySet()
 				.stream()
-				.map((entry) -> entry.getKey())
-				.filter((mod) -> !mod.getModId().equals(ModProvider.MODID))
+				.map((entry) -> entry.getValue())
+				.filter((mod) -> !LOADED_IGNORE_MODS.contains(mod.getModId()));
+	}
+	
+	public static Iterable<ModSelector> loadedMods() {
+		return loadedModsStream()
 				.map((mod) -> specificMod(mod.getModId(), VersionRange.newRange(mod.getProcessedVersion(), Collections.EMPTY_LIST)))
 				.collect(Collectors.toList());
 	}
 	
 	public static Iterable<ModSelector> loadedModsAnyVersion() {
-		return NetworkRegistry.INSTANCE
-				.registry()
-				.entrySet()
-				.stream()
-				.map((entry) -> entry.getKey())
-				.filter((mod) -> !mod.getModId().equals(ModProvider.MODID))
-				.map((mod) -> specificMod(mod.getModId()))
+		return loadedModsStream()
+				.map((mod) -> specificMod(mod.getModId(), RangeUtils.ANY))
 				.collect(Collectors.toList());
 	}
 	

@@ -45,7 +45,7 @@ public class ModRulesetParser {
 		},
 		
 		DEFAULT {
-			private final Pattern PATTERN = Pattern.compile("^([a-z0-9]{1,64})(@.+)?$");
+			private final Pattern PATTERN = Pattern.compile("^(.{0,64}?)(@.+)?$");
 
 			@Override
 			public Iterable<ModSelector> tryParse(String str) throws InvalidVersionSpecificationException {
@@ -55,7 +55,8 @@ public class ModRulesetParser {
 					return null;
 				
 				String modId = matcher.group(1);
-				VersionRange versionRange = parseVersion(matcher.group(2));
+				String versionString = matcher.group(2);
+				VersionRange versionRange = parseVersion(versionString);
 				RangeSet<ArtifactVersion> range = RangeUtils.fromRange(versionRange);
 				
 				if(range.isEmpty())
@@ -64,7 +65,7 @@ public class ModRulesetParser {
 			}
 			
 			private VersionRange parseVersion(String str) throws InvalidVersionSpecificationException {
-				return str == null ? RangeUtils.ANY : VersionRange.createFromVersionSpec(str);
+				return str == null ? RangeUtils.ANY : VersionRange.createFromVersionSpec(str.substring(1));
 			}
 		};
 	}

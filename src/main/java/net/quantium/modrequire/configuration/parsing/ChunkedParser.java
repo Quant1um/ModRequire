@@ -19,13 +19,15 @@ public class ChunkedParser<T> implements IParser<Iterable<T>> {
 		List<T> list = new ArrayList<T>();
 		
 		int chunkId = 0;
+		String chunkStr = "";
 		try{
 			for(String chunk : this.splitter.split(string)) {
 				list.add(this.parser.tryParse(chunk));
 				chunkId++;
+				chunkStr = chunk;
 			}
 		}catch(ParserException e) {
-			throw new ChunkedParserException(chunkId, string, e);
+			throw new ChunkedParserException(chunkId, chunkStr, e);
 		}
 		
 		return list;
@@ -40,7 +42,7 @@ public class ChunkedParser<T> implements IParser<Iterable<T>> {
 		private final String chunk;
 		
 		public ChunkedParserException(int chunkId, String chunk, ParserException e) {
-			super(String.format("Chunked parser threw an exception at %d (%s): %s", chunkId, chunk, e == null ? "null" : e.getMessage()), e);
+			super(String.format("Chunked parser threw an exception at line %d (%s): %s", chunkId, chunk, e == null ? "null" : e.getMessage()), e);
 			this.chunkId = chunkId;
 			this.chunk = chunk;
 		}
